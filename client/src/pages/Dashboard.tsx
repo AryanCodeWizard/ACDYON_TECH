@@ -65,7 +65,7 @@ export default function Dashboard() {
     queryFn: fetchRuns,
     refetchInterval: (query) => {
       const runs = query.state.data;
-      const isRunning = runs?.some((r) => r.status === 'running');
+      const isRunning = Array.isArray(runs) && runs.some((r) => r.status === 'running');
       return isRunning ? 2000 : 8000;
     },
   });
@@ -96,7 +96,19 @@ export default function Dashboard() {
     },
   });
 
-  const latestRun = runsData?.[0];
+  // Safe Array Extractions to prevent runtime Uncaught TypeErrors
+  const runsList: IngestionRunItem[] = Array.isArray(runsData) ? runsData : [];
+  const sourcesList: string[] = Array.isArray(sourcesData) ? sourcesData : [];
+  
+  const jobsList: JobItem[] = Array.isArray(jobsData?.data)
+    ? jobsData.data
+    : Array.isArray(jobsData?.jobs)
+    ? jobsData.jobs
+    : Array.isArray(jobsData)
+    ? jobsData
+    : [];
+
+  const latestRun = runsList[0];
   const isRunning = latestRun?.status === 'running';
 
   useEffect(() => {
@@ -105,12 +117,12 @@ export default function Dashboard() {
     }
   }, [latestRun?.status, latestRun?._id, queryClient]);
 
-  const totalJobs = jobsData?.pagination?.total || 0;
-  const totalPages = jobsData?.pagination?.pages || 1;
+  const totalJobs = jobsData?.pagination?.total ?? jobsList.length;
+  const totalPages = jobsData?.pagination?.pages ?? 1;
 
   // Compute overall deduplication stats across runs
-  const totalFetched = runsData?.reduce((acc, r) => acc + (r.metrics?.fetched || 0), 0) || 0;
-  const totalDuplicates = runsData?.reduce((acc, r) => acc + (r.metrics?.duplicates || 0), 0) || 0;
+  const totalFetched = runsList.reduce((acc, r) => acc + (r.metrics?.fetched || 0), 0);
+  const totalDuplicates = runsList.reduce((acc, r) => acc + (r.metrics?.duplicates || 0), 0);
   const dedupeRate = totalFetched > 0 ? Math.round((totalDuplicates / totalFetched) * 100) : 0;
 
   return (
@@ -375,7 +387,7 @@ export default function Dashboard() {
                 className="bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white text-sm rounded-xl px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#1E40FF]/30 focus:border-[#1E40FF] transition-all cursor-pointer"
               >
                 <option value="all">All Data Sources</option>
-                {sourcesData?.map((src) => (
+                {sourcesList.map((src) => (
                   <option key={src} value={src}>
                     {src.charAt(0).toUpperCase() + src.slice(1)} Adapter
                   </option>
@@ -407,7 +419,7 @@ export default function Dashboard() {
                 </div>
               ))}
             </div>
-          ) : jobsData?.jobs?.length === 0 ? (
+          ) : jobsList.length === 0 ? (
             <div className="bg-white/80 dark:bg-slate-900/80 rounded-2xl p-12 text-center border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-3">
               <div className="w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 flex items-center justify-center mx-auto text-xl">
                 🔍
@@ -419,7 +431,7 @@ export default function Dashboard() {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-              {jobsData?.jobs.map((job: JobItem) => (
+              {jobsList.map((job: JobItem) => (
                 <div
                   key={job._id}
                   onClick={() => setSelectedJob(job)}
@@ -446,7 +458,7 @@ export default function Dashboard() {
                     </div>
 
                     <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-3 leading-relaxed">
-                      {job.description.replace(/<[^>]*>?/gm, '')}
+                      {(job.description || '').replace(/<[^>]*>?/gm, '')}
                     </p>
                   </div>
 
@@ -515,14 +527,14 @@ export default function Dashboard() {
             {/* Modal Body */}
             <div className="p-6 overflow-y-auto space-y-4 text-xs sm:text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
               <div className="bg-slate-50 dark:bg-slate-800/50 p-3.5 rounded-xl border border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
-                <span>Fingerprint: <strong className="font-mono text-slate-700 dark:text-slate-300">{selectedJob.fingerprint.slice(0, 16)}...</strong></span>
+                <span>Fingerprint: <strong className="font-mono text-slate-700 dark:text-slate-300">{(selectedJob.fingerprint || '').slice(0, 16)}...</strong></span>
                 <span>Posted: {new Date(selectedJob.postedAt || selectedJob.createdAt).toLocaleDateString()}</span>
               </div>
               <div>
                 <h4 className="font-bold text-slate-900 dark:text-white mb-2">Job Description</h4>
                 <div
                   className="prose dark:prose-invert max-w-none text-xs sm:text-sm"
-                  dangerouslySetInnerHTML={{ __html: selectedJob.description }}
+                  dangerouslySetInnerHTML={{ __html: selectedJob.description || '' }}
                 />
               </div>
             </div>
