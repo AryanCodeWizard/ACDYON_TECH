@@ -106,7 +106,7 @@ export default function Dashboard() {
   }, []);
 
   // Fetch ingestion runs with polling
-  const { data: runsData } = useQuery<IngestionRunItem[]>({
+  const { data: runsData, isError: runsError } = useQuery<IngestionRunItem[]>({
     queryKey: ['runs'],
     queryFn: fetchRuns,
     refetchInterval: (query) => {
@@ -117,7 +117,7 @@ export default function Dashboard() {
   });
 
   // Fetch available sources
-  const { data: sourcesData } = useQuery<string[]>({
+  const { data: sourcesData, isError: sourcesError } = useQuery<string[]>({
     queryKey: ['sources'],
     queryFn: fetchSources,
   });
@@ -127,6 +127,7 @@ export default function Dashboard() {
     data: jobsData,
     isLoading: jobsLoading,
     isFetching: jobsFetching,
+    isError: jobsError,
   } = useQuery({
     queryKey: ['jobs', page, searchQuery, selectedSource],
     queryFn: () => fetchJobs(page, searchQuery, selectedSource),
@@ -365,6 +366,25 @@ export default function Dashboard() {
         {activeNavTab === 'dashboard' && (
           <div className="space-y-8 animate-fadeIn">
             
+            {/* Database Disconnection / API Error Alert Banner */}
+            {(jobsError || runsError || sourcesError) && (
+              <div className="bg-amber-500/10 border border-amber-500/30 text-amber-900 dark:text-amber-200 p-5 rounded-2xl flex items-start gap-4 text-xs sm:text-sm shadow-sm backdrop-blur-md">
+                <span className="text-2xl p-1 shrink-0">⚠️</span>
+                <div className="flex-1 space-y-1">
+                  <h4 className="font-extrabold text-sm sm:text-base text-amber-900 dark:text-amber-100 flex items-center gap-2">
+                    Database Connection Issue Detected (503 / 500 API Error)
+                  </h4>
+                  <p className="text-amber-800 dark:text-amber-300 leading-relaxed">
+                    The backend server cannot communicate with MongoDB. This usually occurs when the <code className="bg-amber-500/20 px-1.5 py-0.5 rounded font-mono font-semibold text-amber-950 dark:text-amber-100">MONGODB_URI</code> environment variable is missing on Render, or MongoDB Atlas IP Whitelist blocks Render's dynamic IP addresses.
+                  </p>
+                  <div className="pt-2 text-xs font-semibold text-amber-900 dark:text-amber-200 flex flex-wrap gap-x-4 gap-y-1">
+                    <span>💡 <strong>Fix:</strong> Add <code className="bg-amber-500/20 px-1 py-0.5 rounded font-mono">MONGODB_URI</code> in Render Environment Settings</span>
+                    <span>🌐 Allow <code className="bg-amber-500/20 px-1 py-0.5 rounded font-mono">0.0.0.0/0</code> in MongoDB Atlas Network Access</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Live Metrics Grid Cards */}
             {latestRun && (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

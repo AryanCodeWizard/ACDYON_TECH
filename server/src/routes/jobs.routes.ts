@@ -1,7 +1,19 @@
-import { Job } from '../models/Job.model';
 import { Router } from 'express';
+import { isDBConnected } from '../config/database';
+import { Job } from '../models/Job.model';
 
 const router = Router();
+
+// Middleware to check database connection readiness
+router.use((req, res, next) => {
+  if (!isDBConnected()) {
+    return res.status(503).json({
+      error: 'Database connection unavailable. Please verify MONGODB_URI on Render environment configuration.',
+      dbConnected: false,
+    });
+  }
+  next();
+});
 
 router.get('/', async (req, res) => {
   try {

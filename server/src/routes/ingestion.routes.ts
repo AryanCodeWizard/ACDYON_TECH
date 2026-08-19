@@ -2,11 +2,23 @@ import { Router } from 'express';
 import { CompositeAdapter } from '../adapters/CompositeAdapter';
 import { RemotiveAdapter } from '../adapters/RemotiveAdapter';
 import { RSSAdapter } from '../adapters/RSSAdapter';
+import { isDBConnected } from '../config/database';
 import { IngestionRun } from '../models/IngestionRun.model';
 import { IngestionService } from '../services/IngestionService';
 import { Logger } from '../utils/logger';
 
 const router = Router();
+
+// Middleware to check database connection readiness
+router.use((req, res, next) => {
+  if (!isDBConnected()) {
+    return res.status(503).json({
+      error: 'Database connection unavailable. Please verify MONGODB_URI on Render environment configuration.',
+      dbConnected: false,
+    });
+  }
+  next();
+});
 
 router.post('/run', async (req, res) => {
   try {
