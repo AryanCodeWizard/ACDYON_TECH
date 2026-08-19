@@ -1,19 +1,24 @@
-import { IRawJob, ISourceAdapter } from '../adapters/BaseAdapter';
-
+import { ISourceAdapter } from '../adapters/BaseAdapter';
 import { IngestionRun } from '../models/IngestionRun.model';
 import { Job } from '../models/Job.model';
 import { generateFingerprint } from '../utils/fingerprint';
-import mongoose from 'mongoose';
+import { Logger } from '../utils/logger';
+import { validateRawJob } from '../utils/validator';
 
 export class IngestionService {
   constructor(private adapter: ISourceAdapter) {}
 
   async run() {
+    const startTime = Date.now();
+    const sourceName = this.adapter.getSourceName();
+
     const run = new IngestionRun({
-      source: this.adapter.getSourceName(),
+      source: sourceName,
       status: 'running',
     });
     await run.save();
+
+    Logger.info('IngestionService', `Started ingestion run ${run._id} for source '${sourceName}'`);
 
     try {
       const rawJobs = await this.adapter.fetchAndParse();
@@ -21,40 +26,42 @@ export class IngestionService {
       let duplicates = 0;
       let errors = 0;
 
-      // Process each job sequentially to handle dedupe properly
-      for (const raw of rawJobs) {
+      for (const rawItem of rawJobs) {
         try {
-          const fingerprint = generateFingerprint(raw);
+          // 1. Validate raw job payload
+          const validated = validateRawJob(rawItem, sourceName);
 
-          // Check if job already exists via fingerprint (primary dedupe)
-          const existing = await Job.findOne({ fingerprint });
-          if (existing) {
+          // 2. Generate SHA-256 fingerprint hash
+          const fingerprint = generateFingerprint(validated);
+
+          // 3. Primary deduplication check (SHA-256 Fingerprint)
+          const existingByFingerprint = await Job.findOne({ fingerprint });
+          if (existingByFingerprint) {
             duplicates++;
             continue;
           }
 
-          // Optional: Check via source+externalId (secondary dedupe)
-          const existingByExt = await Job.findOne({
-            source: this.adapter.getSourceName(),
-            externalId: raw.externalId,
+          // 4. Secondary deduplication check (source + externalId)
+          const existingByExtId = await Job.findOne({
+            source: sourceName,
+            externalId: validated.externalId,
           });
-          if (existingByExt) {
+          if (existingByExtId) {
             duplicates++;
             continue;
           }
 
-          // Save new job
+          // 5. Save validated job
           const job = new Job({
-            ...raw,
-            source: this.adapter.getSourceName(),
+            ...validated,
+            source: sourceName,
             fingerprint,
           });
           await job.save();
           inserted++;
-        } catch (err) {
+        } catch (err: any) {
           errors++;
-          // Log error but continue processing other jobs
-          console.error('Error processing job:', err);
+          Logger.warn('IngestionService', `Skipped invalid job item from source '${sourceName}': ${err.message}`);
         }
       }
 
@@ -68,12 +75,17 @@ export class IngestionService {
       run.completedAt = new Date();
       await run.save();
 
+      const durationMs = Date.now() - startTime;
+      Logger.ingestionRun(sourceName, run.metrics, durationMs);
+
       return run;
     } catch (error: any) {
       run.status = 'failed';
-      run.errorMessage = error.message || 'Unknown error';
+      run.errorMessage = error.message || 'Unknown ingestion pipeline error';
       run.completedAt = new Date();
       await run.save();
+
+      Logger.error('IngestionService', `Ingestion run ${run._id} failed for source '${sourceName}': ${error.message}`);
       throw error;
     }
   }
