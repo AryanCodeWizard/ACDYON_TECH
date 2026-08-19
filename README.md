@@ -1,72 +1,222 @@
-# AcdyOn JobFlow — Enterprise Data Ingestion & Product Showcase
+# JobFlow — Resilient Data Ingestion Pipeline
 
-> **Acdyon Technologies Engineering Challenge Submission**  
-> *Unified Part 1 (High-Resilience Ingestion Engine) & Part 2 (Premium Product Home Page UI/UX)*
-
----
-
-## 🚀 Overview
-
-**AcdyOn JobFlow** is a premium, enterprise-grade job data ingestion and intelligence platform. It features a Product-Hunt-worthy home page UI/UX (Part 2) that seamlessly showcases an automated data extraction and SHA-256 deduplication pipeline (Part 1).
-
-### ✨ Key Capabilities
-
-1. **Part 2 Core: Premium Product Home Page**
-   - **Hero Section**: Strong value proposition, responsive call-to-action triggers, and honest real-time metrics bar (Total Ingested Jobs, SHA-256 Deduplication Rate, 100% Anti-Bot Uptime, < 3.5s Ingestion Latency).
-   - **Interactive Product Showcase**: Evaluators can trigger real live scraping runs from an embedded **Developer Terminal Log Streamer**, test string normalizations in an **Interactive WebCrypto SHA-256 Hashing Lab**, and inspect the 5-stage **Pipeline Visualizer**.
-   - **Motion & Restraint**: Live terminal log streams, keypress-reactive hash generator, hover glassmorphic cards, and smooth tab switching.
-   - **Flawless Responsiveness**: Engineered for 390px mobile viewports up to 1440px desktop screens with zero horizontal overflow.
-   - **All-or-Nothing Dark & Light Themes**: Ambient radial glow gradients, dark Slate-950 mode, crisp light mode, saved automatically in `localStorage`.
-   - **Zero Fake Data Constraint**: 100% honest numbers dynamically derived from live database metrics and real RSS feeds.
-
-2. **Part 1 Core: Resilient Ingestion & Anti-Bot Architecture**
-   - **Pluggable Source Adapters**: Modular `ISourceAdapter` interface allowing seamless addition of new sources (RSS, REST APIs, JSON-LD scrapers).
-   - **SHA-256 Fingerprint Hashing**: Deterministic 64-character hash tuple over normalized `title + company + location` to eliminate duplicates even when tracking URLs change.
-   - **Anti-Bot Countermeasures**: TLS JA3 cipher impersonation, stealth headers (`Sec-Ch-Ua`, `Sec-Fetch-Dest`), dynamic User-Agent rotation, and Gaussian timing jitter.
-   - **Full Fallback Plan B**: Tiered strategy (Primary RSS API → Stealth Headless Rendering → JSON-LD Microdata).
-
-3. **🎁 Bonus Round Easter Egg**
-   - **Konami Code Listener**: Type `↑ ↑ ↓ ↓ ← → ← → b a` anywhere on the site OR click the secret gold star icon in the header/footer to unlock the **AcdyOn Secret Engineering Console** modal!
-
-4. **📄 DECISIONS.md In-App Modal**
-   - Evaluators can read the written technical explanation directly inside the app by clicking the `DECISIONS.md` header button or viewing `DECISIONS.md`.
+> **Acdyon Technologies Engineering Challenge — Part 1 Submission**  
+> *A fault-tolerant, anti-bot resilient data extraction & SHA-256 deduplication engine for job listings.*
 
 ---
 
-## 🛠️ Architecture & Tech Stack
+## 📌 Problem Statement
 
-- **Backend**: Node.js, Express, TypeScript, Mongoose (MongoDB)
-- **Frontend**: React 18, Vite, Tailwind CSS, TanStack React Query, Axios, WebCrypto API
-- **Ingestion**: Modular `ISourceAdapter`, `RSSAdapter` (WeWorkRemotely RSS feed & fallback sandbox)
-- **Storage**: MongoDB (`Job` collection with unique fingerprint indexes, `IngestionRun` execution history)
+Target job platforms (LinkedIn, Indeed, Naukri, Wellfound) do not provide free, unrestricted APIs and employ aggressive anti-bot countermeasures:
+- **Headless Browser Fingerprinting**: Detecting canvas rendering, WebGL context, and navigator flag anomalies.
+- **Request Profiling & Rate Limiting**: Tracking request velocity, IP origin, missing headers (`Sec-Fetch-*`), and deterministic request timing.
+- **CAPTCHA & IP Bans**: Blacklisting IP ranges and walling requests that exhibit automated patterns.
+
+**Core Challenge**: Extract job listings repeatedly, reliably, and resiliently without burning IP addresses or user accounts—while handling source schema changes, rate limits, and network failures.
 
 ---
 
-## ⚡ Quick Start
+## 💡 Approach & High-Level Strategy
 
-### 1. Prerequisites
-- Node.js >= v18
-- MongoDB instance (local or MongoDB Atlas cluster)
+JobFlow approaches data extraction with a **multi-tiered, anti-bot resilient architecture**:
 
-### 2. Run Monorepo (Server + Client)
+1. **Modular Source Abstraction**: Pluggable `ISourceAdapter` design pattern isolating ingestion logic from pipeline orchestration.
+2. **Deterministic SHA-256 Deduplication**: Generates a 64-character hash tuple over normalized `title | company | location` attributes to eliminate duplicate listings across runs and source variations.
+3. **Stealth Request Profiling**: Emulates browser network signatures using dynamic User-Agent rotation, chrome fetch metadata headers (`Sec-Ch-Ua`, `Sec-Fetch-Dest`), and Gaussian timing jitter.
+4. **Resilience & Fallback Strategy**: Employs a `CompositeAdapter` pattern that automatically falls back to secondary sources (e.g., Remotive REST API) when primary feeds (e.g., WeWorkRemotely RSS) experience downtime or rate limiting.
+5. **Strict Input Sanitization**: Validates payloads, sanitizes HTML descriptions, and enforces URL protocol safeguards against Server-Side Request Forgery (SSRF).
+
+---
+
+## 🛠️ Tech Stack
+
+| Layer | Technologies |
+|---|---|
+| **Runtime & Language** | Node.js (v18+), TypeScript (Strict Mode) |
+| **Backend Framework** | Express.js, Mongoose (MongoDB ORM) |
+| **Ingestion & Cryptography** | Node Crypto (`SHA-256`), Axios, Fast-XML-Parser |
+| **Testing** | Jest, Supertest |
+| **Control Dashboard** | React 18, Vite, Tailwind CSS, TanStack React Query |
+
+---
+
+## 🏗️ System Architecture
+
+```
+                               ┌─────────────────────────┐
+                               │  External Job Sources   │
+                               │ (WeWorkRemotely, etc.)  │
+                               └───────────┬─────────────┘
+                                           │ (Stealth Requests)
+                                           ▼
+┌────────────────────────────────────────────────────────────────────────────────┐
+│                         JobFlow Ingestion Engine                              │
+│                                                                                │
+│   ┌───────────────────────┐    ┌────────────────────────┐    ┌─────────────┐   │
+│   │   ISourceAdapter      ├───►│  Validation & Hash     ├───►│ MongoDB     │   │
+│   │ (RSS / Remotive /     │    │  (SHA-256 Fingerprint) │    │ Storage     │   │
+│   │  Composite Fallback)  │    └────────────────────────┘    └─────────────┘   │
+│   └───────────────────────┘                                                    │
+└──────────────────────────────────────────┬─────────────────────────────────────┘
+                                           │
+                                           ▼
+                               ┌─────────────────────────┐
+                               │  REST API & Live        │
+                               │  Developer Console      │
+                               └─────────────────────────┘
+```
+
+### Component Breakdown
+- **[BaseAdapter.ts](file:///Users/aryanraj/Desktop/ACdyon/jobflow/server/src/adapters/BaseAdapter.ts)**: Defines the standardized `ISourceAdapter` interface and raw job schemas.
+- **[RSSAdapter.ts](file:///Users/aryanraj/Desktop/ACdyon/jobflow/server/src/adapters/RSSAdapter.ts)**: Implements RSS feed parsing with exponential backoff retries and stealth headers.
+- **[RemotiveAdapter.ts](file:///Users/aryanraj/Desktop/ACdyon/jobflow/server/src/adapters/RemotiveAdapter.ts)**: Implements REST API ingestion from secondary job boards.
+- **[CompositeAdapter.ts](file:///Users/aryanraj/Desktop/ACdyon/jobflow/server/src/adapters/CompositeAdapter.ts)**: Manages source rotation and automated fallback policies.
+- **[IngestionService.ts](file:///Users/aryanraj/Desktop/ACdyon/jobflow/server/src/services/IngestionService.ts)**: Orchestrates fetching, validation, deduplication checks, database persistence, and run logging.
+- **[fingerprint.ts](file:///Users/aryanraj/Desktop/ACdyon/jobflow/server/src/utils/fingerprint.ts)**: Computes deterministic SHA-256 fingerprint hashes over normalized job metadata.
+- **[validator.ts](file:///Users/aryanraj/Desktop/ACdyon/jobflow/server/src/utils/validator.ts)**: Enforces payload completeness and SSRF protection.
+- **[logger.ts](file:///Users/aryanraj/Desktop/ACdyon/jobflow/server/src/utils/logger.ts)**: Provides structured logging for pipeline execution and metrics.
+
+---
+
+## ✨ Key Features & Capabilities
+
+- 🔄 **Pluggable Adapter System**: Easily extendable to add new RSS, REST, or scrapers by implementing `ISourceAdapter`.
+- ⚡ **SHA-256 Fingerprint Deduplication**: Prevents duplicate DB writes even when tracking links or query parameters differ.
+- 🛡️ **Anti-Bot Countermeasures**: Includes real user-agent pools, request jitter pacing, and header fingerprint matching.
+- 🚦 **Fault Classification & Recovery**: Differentiates `RateLimitError`, `TransientError`, and `PermanentError` to execute appropriate retry/backoff policies.
+- 🩺 **Health & Metrics Monitoring**: Endpoint exposing source availability, uptime, and database connection status.
+- 💻 **Interactive Developer Console**: React-based control panel to trigger live ingestion runs, view real-time logs, and test fingerprint hashes in a sandbox environment.
+
+---
+
+## ⚡ Setup & Run Instructions
+
+### Prerequisites
+- **Node.js**: v18.0.0 or higher
+- **MongoDB**: Local instance running on `mongodb://localhost:27017` or MongoDB Atlas URI
+
+### 1. Clone & Install Dependencies
+
 ```bash
-# Install dependencies in both packages
-npm --prefix server install
-npm --prefix client install
+# Clone the repository
+git clone https://github.com/AryanCodeWizard/ACDYON_TECH.git
+cd ACDYON_TECH
 
-# Start backend server (port 5005)
-npm --prefix server run dev
+# Install backend dependencies
+cd server
+npm install
 
-# Start frontend app (port 5173 / 5174)
-npm --prefix client run dev
+# Install frontend dependencies
+cd ../client
+npm install
+```
+
+### 2. Environment Setup
+
+Create a `.env` file in the `server` directory (or copy from `server/.env.example`):
+
+```env
+PORT=5005
+MONGODB_URI=mongodb://localhost:27017/jobflow
+NODE_ENV=development
+```
+
+### 3. Run Backend & Frontend
+
+```bash
+# Start backend server (from server/ directory)
+npm run dev
+# Server runs at http://localhost:5005
+
+# Start frontend console (from client/ directory in another terminal)
+npm run dev
+# Frontend runs at http://localhost:5173
+```
+
+### 4. Run Test Suite
+
+```bash
+# Run backend Jest unit tests (from server/ directory)
+npx jest
 ```
 
 ---
 
-## 📝 Submission Checklist
+## 📡 API Reference
 
-- [x] **Part 2 Premium Home Page**: Working responsive home page, value prop hero, interactive product demo, motion restraint, 390px-1440px viewport support, all-or-nothing dark mode, zero fake testimonials/fake numbers.
-- [x] **Part 1 Ingestion Engine**: Live feed ingestion, stealth headers, SHA-256 deduplication, live metrics, run logging.
-- [x] **DECISIONS.md**: Complete written explanation answering ingestion strategy rationale, time-limit trade-offs, AI tool usage, and manual verification.
-- [x] **SYSTEM_DESIGN.md**: Comprehensive analysis of detection surface, ingestion strategy, resilience, and ethical boundaries.
-- [x] **Bonus Round Easter Egg**: Konami Code + Secret Star trigger unlocking the secret engineering console modal.
+### 1. Trigger Ingestion Run
+`POST /api/ingestion/run`
+
+Triggers an ingestion pipeline run using a specified source or the default composite fallback adapter.
+
+#### Request Body:
+```json
+{
+  "source": "weworkremotely"
+}
+```
+*Supported sources:* `"weworkremotely"`, `"remotive"`, `"rss"`, or omit for `"composite"` fallback.
+
+#### Response (`202 Accepted`):
+```json
+{
+  "runId": "66c34f1e9b2a1a2b3c4d5e6f",
+  "status": "completed",
+  "metrics": {
+    "totalFetched": 25,
+    "inserted": 18,
+    "duplicates": 7,
+    "errors": 0
+  }
+}
+```
+
+---
+
+### 2. Health & Source Status Check
+`GET /api/health`
+
+Returns server health, uptime, database status, and individual source availability.
+
+#### Response (`200 OK`):
+```json
+{
+  "status": "ok",
+  "uptime": 142.85,
+  "environment": "development",
+  "mongo": "connected",
+  "sources": {
+    "weworkremotely": {
+      "status": "healthy",
+      "latencyMs": 320
+    },
+    "remotive": {
+      "status": "healthy",
+      "latencyMs": 185
+    }
+  },
+  "timestamp": "2026-08-19T13:10:00.000Z"
+}
+```
+
+---
+
+## 🧠 Important Implementation Decisions ([DECISIONS.md](file:///Users/aryanraj/Desktop/ACdyon/jobflow/DECISIONS.md))
+
+### 1. Strategy Rationale: Direct Adapter Pipeline vs. Message Queues
+- **Choice**: Synchronous adapter pipeline over async brokers (BullMQ/Redis).
+- **Rationale**: Keeps execution transparent, testable, and deterministic within scope boundaries without introducing infrastructure complexity for moderate payload sizes.
+
+### 2. Detection Surface & Mitigation
+- **Mitigation**: Header stealth (`Sec-Fetch-*`), real user-agent pools, and request pacing protect against automated detection on public endpoints.
+
+### 3. Production Roadmap (Given a Full Week)
+1. **Queue Decoupling**: Integrate BullMQ + Redis for asynchronous background ingestion workers.
+2. **Distributed Rate Limiting**: Implement domain-level token buckets in Redis.
+3. **Headless Stealth Fallback**: Add Playwright with residential proxy rotation for challenging anti-bot walls.
+4. **Metrics Export**: Prometheus `/metrics` endpoint for scraper latency and error rates.
+
+### 4. Technical & Ethical Line ("Where We Stop")
+- **Public Data Focus**: Harvests exclusively from public RSS feeds and open REST endpoints.
+- **No Abuse**: Respects target server resources via request pacing and backoff strategies.
+- **ToS Guardrail**: Adheres to scope guidelines by demonstrating resilience on public feeds without violating login-protected platform ToS.
